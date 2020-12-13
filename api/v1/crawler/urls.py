@@ -14,10 +14,16 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 from django.urls import path
+from rest_framework.routers import SimpleRouter
 
-from api.v1.crawler.views import add_new, search
+from api.v1.crawler.views import add_new, search, HouseInfoViewSet
+
+router = SimpleRouter()
+router.register('houses', HouseInfoViewSet)
 
 urlpatterns = [
     path('add/', add_new),
     path('search/', search),
 ]
+
+urlpatterns += router.urls

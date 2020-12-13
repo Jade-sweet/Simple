@@ -37,6 +37,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'django_filters',
     'drf_yasg',
     'rest_framework',
     'api.v1.user',
@@ -122,3 +123,12 @@ USE_TZ = False
 # https://docs.djangoproject.com/en/2.1/howto/static-files/
 
 STATIC_URL = '/static/'
+
+
+REST_FRAMEWORK = {
+    'DEFAULT_SCHEMA_CLASS': 'rest_framework.schemas.coreapi.AutoSchema',
+    # 配置默认页面大小
+    'PAGE_SIZE': 10,
+    # 配置默认的分页类
+    'DEFAULT_PAGINATION_CLASS': 'my_lib.helper.CustomPagePagination',
+}

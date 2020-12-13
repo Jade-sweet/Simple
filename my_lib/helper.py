@@ -1,8 +1,12 @@
 import datetime
 import uuid
 
+from django.db.models import Q
+from django_filters import filterset
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 
+from api.v1.crawler.models import HouseInfo
 from api.v1.user.models import Token
 
 
@@ -29,3 +33,26 @@ def auto_add_token(num: int) -> str:
     t.expire_time = now_time + later_time
     t.save()
     return token_id
+
+
+class CustomPagePagination(PageNumberPagination):
+    """自定义页码分页类"""
+    page_size_query_param = 'size'
+    max_page_size = 50
+
+
+class HouseInfoFilter(filterset.FilterSet):
+    """房屋过滤类"""
+    min_price = filterset.NumberFilter(field_name='price', lookup_expr='gte')
+    max_price = filterset.NumberFilter(field_name='price', lookup_expr='lte')
+    area = filterset.CharFilter(method='filter_by_area')
+
+    @staticmethod
+    def filter_by_area(queryset, name, value):
+        return queryset.filter(Q(county__startswith=value) |
+                               Q(street__startswith=value) |
+                               Q(xiaoqu__startswith=value))
+
+    class Meta:
+        model = HouseInfo
+        fields = ('min_price', 'max_price', 'county')

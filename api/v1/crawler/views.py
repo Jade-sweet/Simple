@@ -4,18 +4,21 @@ import json
 from django.db.models import Q
 
 # Create your views here.
+from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework.filters import OrderingFilter
 from drf_yasg import openapi
 from drf_yasg.openapi import Parameter, IN_PATH, IN_QUERY, TYPE_INTEGER, TYPE_STRING
 from drf_yasg.utils import swagger_auto_schema
 from rest_framework.authentication import BaseAuthentication
 from rest_framework.decorators import api_view, authentication_classes
 from rest_framework.exceptions import AuthenticationFailed
+from rest_framework.viewsets import ReadOnlyModelViewSet
 
 from api.v1.crawler.models import HouseInfo
 from api.v1.serializers.crawler import SimpleSerializer, SearchSerializer, AREA_DICT, SearchResultSerializer
 from api.v1.user.models import Token
 from my_lib.code_encryption import obj_encode
-from my_lib.helper import DefaultResponse
+from my_lib.helper import DefaultResponse, CustomPagePagination, HouseInfoFilter
 from my_lib.tasks import Task, TaskQueue
 
 
@@ -74,11 +77,10 @@ def add_new(request):
     security=[]
 )
 @api_view(('GET',))
-@authentication_classes((SignInAuthentication, ))
+# @authentication_classes((SignInAuthentication, ))
 def search(request):
     """查找信息"""
     data = request.query_params
-    print(data)
     serializer = SearchSerializer(data=data)
     serializer.is_valid(raise_exception=True)
     county = serializer.validated_data['county']
@@ -86,9 +88,39 @@ def search(request):
     max_price = serializer.validated_data['max_price']
     # 查找逻辑
     queryset = HouseInfo.objects.filter(Q(county__startswith=county) & Q(price__gte=min_price) & Q(price__lte=max_price)).all().order_by('area')
+    page = CustomPagePagination()
+    page.ordering = 'price'
+    page_list = page.paginate_queryset(queryset, request)
     count = queryset.count()
     # 结果集序列化器
-    serializer = SearchResultSerializer(queryset, many=True)
-    return DefaultResponse(200, '成功查询', {'results': {'count': count, 'data': serializer.data}})
+    serializer = SearchResultSerializer(page_list, many=True)
+    return DefaultResponse(200, '成功查询', {'results': {'count': count, 'data': page.get_paginated_response(serializer.data)}})
 
 
+class HouseInfoViewSet(ReadOnlyModelViewSet):
+    """查看房源信息"""
+    # 取得全部对象
+    queryset = HouseInfo.objects.all()
+    # 指定筛选类和排序类
+    filter_backends = (DjangoFilterBackend, OrderingFilter)
+    # 指定自己写的筛选类
+    filterset_class = HouseInfoFilter
+    # # 默认的排序字段
+    ordering = '-price'
+    # 可选的排序字段
+    ordering_fields = ('price', 'area')
+    # 序列化类
+    serializer_class = SearchResultSerializer
+    # 分页
+    pagination_class = CustomPagePagination
+    # 验证登录
+    authentication_classes = (SignInAuthentication, )
+
+    def get_queryset(self):
+        if self.action == 'list':
+            return self.queryset.only('county', 'street', 'xiaoqu', 'price', 'area', 'detail_link')
+        return self.queryset
+
+    def list(self, request, *args, **kwargs):
+        result = super().list(request, *args, **kwargs)
+        return DefaultResponse(*(200, '成功查询'), result.data)
